@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local SEO Audit Checklist — 30 Checks, Scored and Prioritised</title>
+<meta name="description" content="Work through 30 local SEO checks, get a score and a prioritised fix list ordered by impact vs effort. Free, no signup, runs in your browser.">
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+<div class="wrap">
+
+<h1>Local SEO Audit Checklist</h1>
+<p class="lede">Thirty checks that decide whether a local business shows up in the map pack. Tick what you already have. What comes back is a score and a fix list ordered by impact against effort — so you do the three things that matter before the twenty that barely move.</p>
+
+<div class="card">
+  <strong>Progress</strong>
+  <div class="muted" id="prog">0 of 30 checked</div>
+  <div style="margin-top:10px">
+    <button id="score">Score my audit</button>
+    <button class="ghost" id="clear" type="button">Clear all</button>
+  </div>
+</div>
+
+<div id="groups"></div>
+
+<div id="out" class="hidden">
+  <h2>Your score</h2>
+  <div class="card" style="text-align:center">
+    <div class="big" id="pts"></div>
+    <div class="muted" id="verdict"></div>
+  </div>
+
+  <h2>Fix these first</h2>
+  <p class="muted">Ordered by impact divided by effort. Work top down.</p>
+  <div id="fixes"></div>
+</div>
+
+<footer>
+  Runs entirely in your browser. Nothing is uploaded — refreshing clears it.
+</footer>
+</div>
+
+<script>
+// impact 1-5 (ranking weight), effort 1-5 (work to fix)
+const CHECKS = [
+  ["Google Business Profile", [
+    ["Profile is claimed and verified", 5, 1],
+    ["Primary category is the most specific one available", 5, 1],
+    ["Secondary categories added where genuinely relevant", 3, 1],
+    ["Business hours filled in, including holiday hours", 2, 1],
+    ["Service area or address set correctly for your model", 4, 1],
+    ["At least 10 real photos, geotagged where possible", 3, 2],
+    ["Products or services listed with descriptions", 3, 2],
+    ["Q&A section seeded with real customer questions", 2, 2],
+    ["Posting updates at least twice a month", 2, 3],
+  ]],
+  ["Reviews", [
+    ["More than 20 Google reviews", 5, 4],
+    ["Average rating above 4.2", 5, 4],
+    ["New review arriving at least every two weeks", 4, 3],
+    ["Every review replied to, including negative ones", 3, 2],
+    ["Reviews mention your services by name naturally", 3, 3],
+  ]],
+  ["Website", [
+    ["Business name, address and phone in the footer sitewide", 4, 1],
+    ["NAP matches your Google profile character for character", 5, 1],
+    ["A dedicated page per service, not one combined page", 4, 3],
+    ["A page per service area you genuinely serve", 4, 4],
+    ["Phone number is a clickable tel: link on mobile", 3, 1],
+    ["Loads in under 3 seconds on mobile", 4, 3],
+    ["LocalBusiness schema markup present and valid", 3, 2],
+    ["Embedded Google map on the contact page", 2, 1],
+    ["Title tags include the city you serve", 4, 1],
+  ]],
+  ["Citations and links", [
+    ["Listed on the core directories for your country", 4, 3],
+    ["NAP identical across every listing found", 5, 3],
+    ["No duplicate listings for the same location", 4, 3],
+    ["At least one link from a local organisation or supplier", 3, 4],
+  ]],
+  ["Tracking", [
+    ["Google Search Console connected and verified", 3, 1],
+    ["Analytics recording calls and form submissions as events", 4, 2],
+    ["You know which keywords currently bring calls", 4, 3],
+  ]],
+];
+
+const $ = id => document.getElementById(id);
+let boxes = [];
+
+function build(){
+  $("groups").innerHTML = CHECKS.map(([group, items], gi) => `
+    <h2>${group}</h2>
+    ${items.map(([label, impact, effort], ii) => `
+      <label style="display:flex;gap:10px;align-items:flex-start;padding:9px 0;
+                    border-bottom:1px solid var(--line);font-weight:400">
+        <input type="checkbox" data-g="${gi}" data-i="${ii}"
+               style="width:auto;margin-top:4px">
+        <span>${label}
+          <span class="muted" style="font-size:.8rem"> · impact ${impact}/5</span>
+        </span>
+      </label>`).join("")}
+  `).join("");
+
+  boxes = Array.from(document.querySelectorAll('input[type=checkbox]'));
+  boxes.forEach(b => b.addEventListener("change", progress));
+  progress();
+}
+
+function progress(){
+  const done = boxes.filter(b => b.checked).length;
+  $("prog").textContent = `${done} of ${boxes.length} checked`;
+}
+
+function score(){
+  let got = 0, total = 0;
+  const missing = [];
+
+  CHECKS.forEach(([group, items], gi) => {
+    items.forEach(([label, impact, effort], ii) => {
+      total += impact;
+      const box = boxes.find(b => +b.dataset.g === gi && +b.dataset.i === ii);
+      if (box && box.checked) got += impact;
+      else missing.push({group, label, impact, effort, ratio: impact/effort});
+    });
+  });
+
+  const pct = total ? Math.round(got/total*100) : 0;
+  $("out").classList.remove("hidden");
+  $("pts").textContent = pct + "%";
+
+  const verdict =
+    pct >= 85 ? "Strong. The remaining gaps are refinements, not blockers."
+  : pct >= 65 ? "Decent foundation. The fixes below are what separate you from the top 3."
+  : pct >= 40 ? "Real gaps. Several of these are cheap and will move rankings within weeks."
+  : "Most of the basics are missing. That is good news — the first few fixes usually move the most.";
+  $("verdict").textContent = verdict;
+
+  missing.sort((a,b) => b.ratio - a.ratio || b.impact - a.impact);
+  $("fixes").innerHTML = missing.slice(0,12).map((m,i) => {
+    const tag = m.ratio >= 3 ? ["good","quick win"]
+              : m.ratio >= 1.5 ? ["warn","worth doing"]
+              : ["bad","bigger project"];
+    return `<div class="card">
+      <span class="pill ${tag[0]}">${tag[1]}</span>
+      <strong style="margin-left:8px">${i+1}. ${m.label}</strong>
+      <div class="muted" style="margin-top:5px">
+        ${m.group} · impact ${m.impact}/5 · effort ${m.effort}/5
+      </div></div>`;
+  }).join("") || `<div class="card">Nothing missing. Re-run this quarterly —
+    categories, competitors and review velocity all drift.</div>`;
+
+  $("out").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+$("score").onclick = score;
+$("clear").onclick = () => { boxes.forEach(b => b.checked = false); progress();
+                             $("out").classList.add("hidden"); };
+build();
+</script>
+</body>
+</html>

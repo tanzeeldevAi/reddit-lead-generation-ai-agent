@@ -1,0 +1,26 @@
+# SECRETS - never commit.
+.env
+*.key
+
+# YOUR DATA - the database, your drafts, and the logged-in browser profiles.
+# profiles/ contains live Reddit sessions. Treat it like a password.
+data/
+drafts/
+profiles/
+logs/
+
+# runtime
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# editors / OS
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

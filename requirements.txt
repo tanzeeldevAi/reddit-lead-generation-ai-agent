@@ -1,0 +1,6 @@
+# All already present on this machine -- listed for portability.
+requests>=2.31
+PyYAML>=6.0
+beautifulsoup4>=4.12
+python-dotenv>=1.0
+playwright>=1.40

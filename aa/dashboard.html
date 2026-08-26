@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Authority Agent</title>
+<style>
+:root{
+  --ink:#e9edf4; --muted:#8e99ab; --line:#252c39; --bg:#0e1117; --card:#151a23;
+  --accent:#5b9dff; --accent-soft:#16223a; --good:#3fbf7f; --warn:#e0a34a;
+  --bad:#f2685c; --btn-ink:#06121f;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root{ --ink:#131820; --muted:#5f6b7c; --line:#e2e7ee; --bg:#f7f9fc;
+         --card:#ffffff; --accent-soft:#e9f1ff;
+         /* Darker accent + white button text. The dark-theme blue on a light
+            background made every enabled button look greyed out. */
+         --accent:#1c5fd6; --btn-ink:#ffffff; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 18px 80px}
+header{display:flex;align-items:baseline;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+h1{font-size:1.35rem;margin:0;letter-spacing:-.02em}
+h2{font-size:1.02rem;margin:26px 0 10px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:.85rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:15px;margin-bottom:12px}
+button{font:inherit;font-weight:600;cursor:pointer;padding:8px 15px;border-radius:7px;
+  border:1px solid var(--accent);background:var(--accent);color:var(--btn-ink)}
+button.ghost{background:transparent;color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,textarea,select{width:100%;padding:9px 11px;font:inherit;color:var(--ink);
+  background:var(--bg);border:1px solid var(--line);border-radius:7px;outline:none}
+input:focus,textarea:focus{border-color:var(--accent)}
+textarea{min-height:74px;resize:vertical;font-family:var(--mono);font-size:.86rem}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.tabs{display:flex;gap:5px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap}
+.tab{padding:9px 14px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);font-weight:600;font-size:.9rem}
+.tab.on{color:var(--ink);border-bottom-color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{text-align:left;padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.scroll{overflow-x:auto}
+.pill{display:inline-block;font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
+.pill.good{background:rgba(63,191,127,.15);color:var(--good)}
+.pill.warn{background:rgba(224,163,74,.15);color:var(--warn)}
+.pill.bad{background:rgba(242,104,92,.15);color:var(--bad)}
+.pill.dim{background:var(--accent-soft);color:var(--accent)}
+.big{font-size:1.9rem;font-weight:700;letter-spacing:-.02em}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono);font-size:.85em}
+.hidden{display:none}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px}
+.log{background:#080b10;color:#9fe6b8;font-family:var(--mono);font-size:.78rem;
+  padding:11px;border-radius:8px;max-height:270px;overflow:auto;white-space:pre-wrap}
+.bars{display:flex;align-items:flex-end;gap:2px;height:80px;margin-top:8px}
+.bar{flex:1;background:var(--accent);border-radius:2px 2px 0 0;min-height:1px;position:relative}
+.bar.t{background:var(--good)}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Authority Agent</h1>
+  <span class="sub" id="hdr">loading…</span>
+</header>
+
+<div class="tabs" id="tabs"></div>
+
+<!-- ================= SITES ================= -->
+<div id="tab-sites">
+  <div class="card">
+    <strong>Add a site</strong>
+    <div class="muted" style="margin:5px 0 10px">
+      Paste a URL. The niche, keywords, subreddits and linkable pages are worked
+      out automatically — you review them before anything runs.
+    </div>
+    <div class="row">
+      <input id="newurl" placeholder="yourdomain.com" style="flex:1;min-width:230px">
+      <button id="btn-detect">Detect niche</button>
+    </div>
+    <div id="detect-log" class="log hidden" style="margin-top:10px"></div>
+  </div>
+
+  <div id="proposal" class="hidden"></div>
+  <div id="sites"></div>
+</div>
+
+<!-- ================= QUEUE ================= -->
+<div id="tab-queue" class="hidden">
+  <div class="card row">
+    <select id="q-site" style="flex:1;min-width:180px"></select>
+    <button id="btn-discover">Run discovery</button>
+    <button class="ghost" id="btn-rescore">Re-score</button>
+  </div>
+  <div id="job-log" class="log hidden"></div>
+  <div id="queue"></div>
+</div>
+
+<!-- ================= REPORT ================= -->
+<div id="tab-report" class="hidden">
+  <div class="card row">
+    <select id="r-site" style="flex:1;min-width:180px"></select>
+  </div>
+  <div id="report"></div>
+</div>
+
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const el = (t,c,h) => { const e=document.createElement(t); if(c)e.className=c;
+                        if(h!==undefined)e.innerHTML=h; return e; };
+const esc = s => (s||"").replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let STATE = {sites:[]}, PROPOSAL = null, TAB = "sites";
+
+// A dead server used to render as an empty list, which reads as "nothing here"
+// rather than "nothing loaded". Surface it instead.
+function offline(on, detail){
+  let b = $("#offline");
+  if (!b){
+    b = el("div","card","");
+    b.id = "offline";
+    b.style.cssText = "border-color:var(--bad);position:sticky;top:0;z-index:9";
+    document.querySelector(".wrap").insertBefore(b, $("#tabs"));
+  }
+  b.classList.toggle("hidden", !on);
+  if (on) b.innerHTML =
+    `<span class="pill bad">server not responding</span>
+     <span class="muted" style="margin-left:8px">
+       The dashboard cannot reach the backend, so nothing below is live.
+       Restart it: <span class="mono">START.bat</span> then option 1
+       (or <span class="mono">python serve.py 8788</span>).
+     </span>
+     <div class="muted mono" style="margin-top:6px;font-size:.78rem">${esc(detail||"")}</div>`;
+}
+
+async function post(path, body){
+  try {
+    const r = await fetch(path, {method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(body||{})});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    offline(false);
+    return d;
+  } catch (e) {
+    offline(true, `${path}: ${e.message}`);
+    return {__failed: true, error: e.message};
+  }
+}
+
+async function pollJob(jobId, logEl, onDone){
+  logEl.classList.remove("hidden");
+  let last = 0;
+  const tick = async () => {
+    const j = await post("/api/job", {id: jobId});
+    (j.log||[]).slice(last).forEach(line => logEl.textContent += line + "\n");
+    last = (j.log||[]).length;
+    logEl.scrollTop = logEl.scrollHeight;
+    if (j.state === "running") return setTimeout(tick, 900);
+    if (j.state === "error") logEl.textContent += "\nFAILED: " + j.result + "\n";
+    onDone && onDone(j);
+  };
+  tick();
+}
+
+// ------------------------------------------------------------------ tabs
+function setTab(name){
+  TAB = name;
+  ["sites","queue","report"].forEach(t => {
+    $("#tab-"+t).classList.toggle("hidden", t !== name);
+  });
+  [...$("#tabs").children].forEach(c => c.classList.toggle("on", c.dataset.t === name));
+  if (name === "queue") loadQueue();
+  if (name === "report") loadReport();
+}
+
+function buildTabs(){
+  $("#tabs").innerHTML = "";
+  [["sites","Sites"],["queue","Queue"],["report","Report"]].forEach(([k,label]) => {
+    const t = el("div","tab"+(k===TAB?" on":""),label);
+    t.dataset.t = k; t.onclick = () => setTab(k);
+    $("#tabs").appendChild(t);
+  });
+}
+
+// ------------------------------------------------------------------ state
+async function refresh(){
+  const d = await post("/api/state", {});
+  if (d.__failed) return;              // banner already shown; keep last good view
+  STATE = d;
+  const n = STATE.sites.length;
+  const totalQ = STATE.sites.reduce((a,s)=>a+s.queue,0);
+  $("#hdr").textContent = `${n} site${n===1?"":"s"} · ${totalQ} in queue`;
+  renderSites();
+  ["#q-site","#r-site"].forEach(sel => {
+    const cur = $(sel).value;
+    $(sel).innerHTML = STATE.sites.map(s =>
+      `<option value="${s.id}">${esc(s.name||s.url)}</option>`).join("");
+    if (cur) $(sel).value = cur;
+  });
+}
+
+function renderSites(){
+  const box = $("#sites"); box.innerHTML = "";
+  if (!STATE.sites.length){
+    box.appendChild(el("div","card muted","No sites yet. Add one above."));
+    return;
+  }
+  STATE.sites.forEach(s => {
+    const t = s.tiers||{};
+    const noUniversal = !t.universal;
+    const c = el("div","card");
+    c.innerHTML = `
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <strong>${esc(s.name||s.url)}</strong>
+          <span class="pill dim" style="margin-left:6px">#${s.id}</span>
+          ${s.niche_source==="auto"?'<span class="pill warn" style="margin-left:4px">unreviewed</span>':""}
+        </div>
+        <a href="${esc(s.url)}" target="_blank" class="mono">${esc(s.url)}</a>
+      </div>
+      <div class="muted" style="margin:7px 0 10px">${esc(s.niche)}</div>
+      <div class="row muted" style="font-size:.83rem">
+        <span>${s.keywords.length} keywords</span>·
+        <span>${s.communities.length} communities</span>·
+        <span>${s.value_pages.length} pages
+          (<span class="${noUniversal?'':'muted'}">${t.universal||0} universal</span>,
+           ${t.semi||0} semi, ${t.locked||0} locked)</span>·
+        <span>${s.queue} queued</span>
+      </div>
+      ${noUniversal ? `<div class="card" style="margin:10px 0 0;border-color:var(--warn)">
+        <span class="pill warn">no universal pages</span>
+        <span class="muted" style="margin-left:7px">Every page is branded to this
+        site's vertical, so broad threads will get no-link comments. Publish an
+        unbranded tool to unlock linking.</span></div>` : ""}
+      <details style="margin-top:10px">
+        <summary class="muted" style="cursor:pointer">Edit niche, audience, keywords</summary>
+        <div style="margin-top:10px">
+          <label class="muted">Niche</label>
+          <input data-f="niche" value="${esc(s.niche)}">
+          <label class="muted" style="margin-top:8px;display:block">Audience</label>
+          <input data-f="audience" value="${esc(s.audience)}">
+          <label class="muted" style="margin-top:8px;display:block">Keywords (one per line)</label>
+          <textarea data-f="keywords">${esc(s.keywords.join("\n"))}</textarea>
+          <label class="muted" style="margin-top:8px;display:block">Subreddits (one per line)</label>
+          <textarea data-f="communities">${esc(s.communities.join("\n"))}</textarea>
+          <label class="muted" style="margin-top:8px;display:block">Reddit account for this site</label>
+          <input data-f="reddit_user" value="${esc(s.reddit_user)}" placeholder="one account per site">
+          <div style="margin-top:10px"><button class="save">Save changes</button></div>
+        </div>
+      </details>`;
+    c.querySelector(".save").onclick = async () => {
+      const fields = {};
+      c.querySelectorAll("[data-f]").forEach(i => {
+        const k = i.dataset.f;
+        fields[k] = (k==="keywords"||k==="communities")
+          ? i.value.split("\n").map(x=>x.trim()).filter(Boolean)
+          : i.value.trim();
+      });
+      await post("/api/site/update", {site_id: s.id, fields});
+      await refresh();
+    };
+    box.appendChild(c);
+  });
+}
+
+// ------------------------------------------------------------------ detect
+$("#btn-detect").onclick = async () => {
+  const url = $("#newurl").value.trim();
+  if (!url) return;
+  const logEl = $("#detect-log"); logEl.textContent = "";
+  $("#btn-detect").disabled = true;
+  const {job} = await post("/api/detect", {url});
+  pollJob(job, logEl, j => {
+    $("#btn-detect").disabled = false;
+    if (j.state === "done"){ PROPOSAL = j.result; renderProposal(); }
+  });
+};
+
+function renderProposal(){
+  const p = PROPOSAL, box = $("#proposal");
+  box.classList.remove("hidden");
+  box.innerHTML = `
+    <div class="card" style="border-color:var(--accent)">
+      <div class="row" style="justify-content:space-between">
+        <strong>Review before adding</strong>
+        <span class="pill ${p.confidence==='high'?'good':p.confidence==='medium'?'warn':'bad'}">
+          ${p.confidence} confidence</span>
+      </div>
+      <div style="margin-top:12px">
+        <label class="muted">Name</label><input id="p-name" value="${esc(p.name)}">
+        <label class="muted" style="margin-top:8px;display:block">Niche</label>
+        <input id="p-niche" value="${esc(p.niche)}">
+        <label class="muted" style="margin-top:8px;display:block">Audience</label>
+        <input id="p-aud" value="${esc(p.audience)}" placeholder="who you are talking to">
+        <label class="muted" style="margin-top:8px;display:block">Reddit account for this site</label>
+        <input id="p-user" placeholder="one account per site">
+        <label class="muted" style="margin-top:8px;display:block">Keywords — problem-space, not industry (${p.keywords.length})</label>
+        <textarea id="p-kw">${esc(p.keywords.join("\n"))}</textarea>
+        <label class="muted" style="margin-top:8px;display:block">Subreddits (${p.communities.length})</label>
+        <textarea id="p-comm">${esc(p.communities.join("\n"))}</textarea>
+        <label class="muted" style="margin-top:8px;display:block">Linkable pages (${p.value_pages.length})</label>
+        <div class="scroll"><table><tbody>${p.value_pages.map(v=>
+          `<tr><td>${esc(v.title)}</td><td class="mono muted">${esc(v.url)}</td></tr>`).join("")}</tbody></table></div>
+        <div class="row" style="margin-top:12px">
+          <button id="p-add">Add this site</button>
+          <button class="ghost" id="p-cancel">Cancel</button>
+        </div>
+        <div id="add-log" class="log hidden" style="margin-top:10px"></div>
+      </div>
+    </div>`;
+  $("#p-cancel").onclick = () => { box.classList.add("hidden"); PROPOSAL=null; };
+  $("#p-add").onclick = async () => {
+    const proposal = {...PROPOSAL,
+      name: $("#p-name").value.trim(), niche: $("#p-niche").value.trim(),
+      audience: $("#p-aud").value.trim(), reddit_user: $("#p-user").value.trim(),
+      keywords: $("#p-kw").value.split("\n").map(s=>s.trim()).filter(Boolean),
+      communities: $("#p-comm").value.split("\n").map(s=>s.trim()).filter(Boolean)};
+    $("#p-add").disabled = true;
+    const {job} = await post("/api/site/add", {proposal});
+    pollJob(job, $("#add-log"), async j => {
+      $("#p-add").disabled = false;
+      if (j.state==="done"){ box.classList.add("hidden"); PROPOSAL=null; await refresh(); }
+    });
+  };
+}
+
+// ------------------------------------------------------------------ queue
+$("#btn-discover").onclick = async () => {
+  const site_id = $("#q-site").value; if(!site_id) return;
+  $("#job-log").textContent = ""; $("#btn-discover").disabled = true;
+  const {job} = await post("/api/discover", {site_id});
+  pollJob(job, $("#job-log"), async () => {
+    $("#btn-discover").disabled = false; await refresh(); loadQueue();
+  });
+};
+$("#btn-rescore").onclick = async () => {
+  const site_id = $("#q-site").value; if(!site_id) return;
+  $("#job-log").textContent = "";
+  const {job} = await post("/api/rescore", {site_id});
+  pollJob(job, $("#job-log"), async () => { await refresh(); loadQueue(); });
+};
+$("#q-site").onchange = loadQueue;
+
+async function loadQueue(){
+  const site_id = $("#q-site").value;
+  const box = $("#queue");
+  if(!site_id){
+    box.innerHTML = "";
+    box.appendChild(el("div","card muted",
+      "No site selected. Add one on the Sites tab."));
+    return;
+  }
+  const d = await post("/api/queue", {site_id});
+  box.innerHTML = "";
+  if (d.__failed){
+    box.appendChild(el("div","card muted",
+      "Could not load the queue -- see the message at the top of the page."));
+    return;
+  }
+  const threads = d.threads || [];
+  if(!threads.length){
+    box.appendChild(el("div","card muted",
+      "Nothing queued. Run discovery, or lower the score threshold with Re-score."));
+    return;
+  }
+  box.appendChild(el("div","sub muted",
+    `${threads.length} threads queued, highest scoring first`));
+  threads.forEach(t => {
+    const linked = !!t.link;
+    const c = el("div","card");
+    c.innerHTML = `
+      <div class="row" style="justify-content:space-between">
+        <div style="flex:1;min-width:220px">
+          <a href="${esc(t.url)}" target="_blank"><strong>${esc(t.title)}</strong></a>
+          <div class="muted" style="font-size:.83rem;margin-top:3px">
+            r/${esc(t.community)} · ${t.comments} comments ·
+            matched "${esc(t.keyword)}"
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="big" style="font-size:1.25rem">${t.score.toFixed(0)}</div>
+          <span class="pill ${linked?'good':'dim'}">${linked?'link ok':'no link'}</span>
+        </div>
+      </div>
+      <div class="muted mono" style="margin-top:8px;font-size:.8rem">${esc(t.link_reason)}</div>
+      ${linked?`<div class="mono" style="margin-top:5px"><a href="${esc(t.link)}" target="_blank">${esc(t.link)}</a></div>`:""}
+      <details style="margin-top:9px">
+        <summary class="muted" style="cursor:pointer">Thread body</summary>
+        <div class="muted" style="white-space:pre-wrap;margin-top:7px;font-size:.86rem">${esc(t.body)||"(no body)"}</div>
+      </details>`;
+    box.appendChild(c);
+  });
+}
+
+// ------------------------------------------------------------------ report
+$("#r-site").onchange = loadReport;
+
+async function loadReport(){
+  const site_id = $("#r-site").value;
+  const d = await post("/api/report", {site_id});
+  const box = $("#report"); box.innerHTML = "";
+  if (d.__failed || !d.summary){
+    box.appendChild(el("div","card muted",
+      "Could not load the report -- see the message at the top of the page."));
+    return;
+  }
+  const s = d.summary;
+
+  const periods = [["daily","Last 24 hours"],["weekly","Last 7 days"],
+                   ["monthly","Last 30 days"],["all_time","All time"]];
+  const grid = el("div","stats");
+  periods.forEach(([k,label]) => {
+    const t = s[k];
+    grid.appendChild(el("div","stat",`
+      <div class="muted" style="font-size:.78rem">${label}</div>
+      <div class="big">${t.total}</div>
+      <div class="muted" style="font-size:.8rem">
+        ${t.threads} threads · ${t.comments} comments</div>
+      <div class="muted" style="font-size:.78rem;margin-top:3px">
+        ${t.linked} with a link</div>`));
+  });
+  box.appendChild(grid);
+
+  const mo = s.monthly;
+  const ratio = (mo.link_ratio*100).toFixed(0);
+  box.appendChild(el("div","card",`
+    <strong>Link ratio, last 30 days</strong>
+    <div class="row" style="margin-top:6px">
+      <span class="big" style="font-size:1.5rem">${ratio}%</span>
+      <span class="pill ${mo.link_ratio<=0.30?'good':'bad'}">
+        ${mo.link_ratio<=0.30?'healthy':'too high'}</span>
+      <span class="muted">under 30% is what keeps an account off the spam radar</span>
+    </div>
+    <div class="muted" style="margin-top:7px">
+      ${mo.upvotes} upvotes · ${mo.replies} replies in the last 30 days</div>`));
+
+  const days = d.by_day.slice().reverse();
+  const max = Math.max(1, ...days.map(x=>x.total));
+  const bars = el("div","card",`<strong>Daily activity</strong>
+    <div class="muted" style="font-size:.8rem">last 30 days · green = threads created</div>`);
+  const barbox = el("div","bars");
+  days.forEach(x => {
+    const b = el("div","bar"+(x.threads?" t":""));
+    b.style.height = Math.round(x.total/max*100)+"%";
+    b.title = `${x.date}: ${x.threads} threads, ${x.comments} comments`;
+    barbox.appendChild(b);
+  });
+  bars.appendChild(barbox);
+  box.appendChild(bars);
+
+  if (d.by_community.length){
+    const rows = d.by_community.map(c=>`<tr>
+      <td>${esc(c.platform)}</td><td>${esc(c.community)}</td>
+      <td>${c.posts}</td><td>${c.linked}</td><td>${c.upvotes}</td></tr>`).join("");
+    box.appendChild(el("div","card",`<strong>Where it landed</strong>
+      <div class="scroll"><table>
+      <thead><tr><th>Platform</th><th>Community</th><th>Posts</th>
+      <th>With link</th><th>Upvotes</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`));
+  } else {
+    box.appendChild(el("div","card muted",
+      "Nothing posted yet. Numbers appear here once the agent starts commenting."));
+  }
+}
+
+buildTabs(); refresh();
+</script>
+</body>
+</html>

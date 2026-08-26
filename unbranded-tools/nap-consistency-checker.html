@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAP Consistency Checker — Local Citation Audit for Any Business</title>
+<meta name="description" content="Check your business Name, Address and Phone for the formatting inconsistencies that split your local citations. Free, no signup, runs entirely in your browser.">
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+<div class="wrap">
+
+<h1>NAP Consistency Checker</h1>
+<p class="lede">Google treats <span class="mono">Suite 200</span> and <span class="mono">Ste 200</span> as two different businesses. This checks your Name, Address and Phone for the formatting splits that quietly divide your citations, then gives you a directory list with a direct search link for each one.</p>
+
+<div class="card">
+  <div class="grid">
+    <div class="full">
+      <label for="bname">Business name</label>
+      <input id="bname" placeholder="Riverside Dental Care Inc.">
+    </div>
+    <div class="full">
+      <label for="addr">Street address</label>
+      <input id="addr" placeholder="1200 North Sherman Boulevard, Suite 200">
+    </div>
+    <div>
+      <label for="city">City</label>
+      <input id="city" placeholder="Milwaukee">
+    </div>
+    <div>
+      <label for="region">State / Province</label>
+      <input id="region" placeholder="WI">
+    </div>
+    <div>
+      <label for="phone">Phone</label>
+      <input id="phone" placeholder="(414) 555-0142">
+    </div>
+    <div>
+      <label for="country">Country</label>
+      <select id="country">
+        <option value="us">United States</option>
+        <option value="ca">Canada</option>
+        <option value="uk">United Kingdom</option>
+        <option value="au">Australia</option>
+      </select>
+    </div>
+    <div class="full">
+      <button id="run">Check my NAP</button>
+      <button class="ghost" id="demo" type="button">Load an example</button>
+    </div>
+  </div>
+</div>
+
+<div id="out" class="hidden">
+  <h2>Formatting risks found</h2>
+  <div id="issues"></div>
+
+  <h2>Your canonical NAP</h2>
+  <p class="muted">Use this exact string everywhere. Copy it once and paste it every time — that is the whole trick.</p>
+  <div class="card mono" id="canon"></div>
+  <button class="ghost" id="copy" type="button">Copy canonical NAP</button>
+
+  <h2>Directories to check</h2>
+  <p class="muted">Each link searches that directory for your business name and city. Open it, compare against the canonical string above, fix anything that differs.</p>
+  <div class="scroll"><table id="dirs">
+    <thead><tr><th>Directory</th><th>Why it matters</th><th>Check</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+</div>
+
+<footer>
+  Runs entirely in your browser — nothing is uploaded, stored, or emailed.
+</footer>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// The abbreviation pairs that actually split citations. Each entry is a
+// [full, abbreviated] pair; if the input contains one form, the other form
+// existing anywhere else in your listings creates a duplicate.
+// ---------------------------------------------------------------------------
+const PAIRS = [
+  ["street","st"],["avenue","ave"],["boulevard","blvd"],["road","rd"],
+  ["drive","dr"],["lane","ln"],["court","ct"],["place","pl"],["parkway","pkwy"],
+  ["highway","hwy"],["suite","ste"],["apartment","apt"],["floor","fl"],
+  ["building","bldg"],["north","n"],["south","s"],["east","e"],["west","w"],
+  ["northeast","ne"],["northwest","nw"],["southeast","se"],["southwest","sw"],
+  ["incorporated","inc"],["company","co"],["corporation","corp"],
+  ["limited","ltd"],["and","&"]
+];
+
+const DIRECTORIES = {
+  core: [
+    ["Google Business Profile","The single biggest local ranking factor","https://www.google.com/search?q="],
+    ["Apple Maps","Feeds Siri and every iPhone map query","https://duckduckgo.com/?q=site%3Amaps.apple.com+"],
+    ["Bing Places","Feeds Bing, Copilot and DuckDuckGo","https://www.bing.com/search?q="],
+    ["Facebook Page","Often the second result for a brand search","https://www.facebook.com/search/top?q="],
+    ["Yelp","High domain authority, frequently scraped by others","https://www.yelp.com/search?find_desc="],
+    ["Better Business Bureau","Trust signal, appears in branded searches","https://www.bbb.org/search?find_text="],
+  ],
+  us: [
+    ["Yellow Pages","https://www.yellowpages.com/search?search_terms="],
+    ["Foursquare","https://foursquare.com/explore?q="],
+    ["Nextdoor","https://nextdoor.com/search/?query="],
+    ["Angi","https://www.angi.com/companylist/search.htm?searchTerm="],
+    ["Manta","https://www.manta.com/search?search="],
+    ["Chamber of Commerce","https://www.chamberofcommerce.com/search?what="],
+    ["MapQuest","https://www.mapquest.com/search/results?query="],
+    ["Superpages","https://www.superpages.com/search?search_terms="],
+  ],
+  ca: [
+    ["Yellow Pages CA","https://www.yellowpages.ca/search/si/1/"],
+    ["Canada411","https://www.canada411.ca/search/?stype=business&what="],
+    ["Yelp Canada","https://www.yelp.ca/search?find_desc="],
+    ["Foursquare","https://foursquare.com/explore?q="],
+    ["Nextdoor","https://nextdoor.com/search/?query="],
+  ],
+  uk: [
+    ["Yell","https://www.yell.com/ucs/UcsSearchAction.do?keywords="],
+    ["Thomson Local","https://www.thomsonlocal.com/search?what="],
+    ["Scoot","https://www.scoot.co.uk/search?what="],
+    ["FreeIndex","https://www.freeindex.co.uk/search.htm?q="],
+    ["Cylex UK","https://www.cylex-uk.co.uk/s?q="],
+  ],
+  au: [
+    ["Yellow Pages AU","https://www.yellowpages.com.au/search/listings?clue="],
+    ["True Local","https://www.truelocal.com.au/search?query="],
+    ["Hotfrog AU","https://www.hotfrog.com.au/search?q="],
+    ["Local Search","https://www.localsearch.com.au/find/"],
+  ]
+};
+
+const $ = id => document.getElementById(id);
+
+function digits(s){ return (s||"").replace(/\D/g,""); }
+
+function findPairIssues(text){
+  const low = " " + (text||"").toLowerCase().replace(/[.,]/g," ") + " ";
+  const found = [];
+  for (const [full, abbr] of PAIRS){
+    const hasFull = low.includes(" "+full+" ");
+    const hasAbbr = low.includes(" "+abbr+" ");
+    if (hasFull || hasAbbr){
+      found.push({ used: hasFull ? full : abbr, other: hasFull ? abbr : full });
+    }
+  }
+  return found;
+}
+
+function analyse(){
+  const name = $("bname").value.trim();
+  const addr = $("addr").value.trim();
+  const city = $("city").value.trim();
+  const region = $("region").value.trim();
+  const phone = $("phone").value.trim();
+  const country = $("country").value;
+
+  if (!name || !addr || !city){
+    alert("Add at least a business name, address and city.");
+    return;
+  }
+
+  const issues = [];
+
+  // 1. abbreviation splits
+  const pairs = findPairIssues(addr + " " + name);
+  pairs.forEach(p => issues.push({
+    level: "warn",
+    title: `"${p.used}" vs "${p.other}"`,
+    body: `You wrote <span class="mono">${p.used}</span>. If any directory lists you as <span class="mono">${p.other}</span>, that is a separate citation as far as Google is concerned. Pick one form and use it everywhere.`
+  }));
+
+  // 2. phone formatting
+  const d = digits(phone);
+  if (!phone){
+    issues.push({level:"bad", title:"No phone number",
+      body:"A local listing without a phone number will not rank in the map pack. Add one."});
+  } else if (d.length < 10){
+    issues.push({level:"bad", title:"Phone looks incomplete",
+      body:`Only ${d.length} digits detected. Check the number.`});
+  } else {
+    issues.push({level:"good", title:"Phone digits are consistent",
+      body:`Digits: <span class="mono">${d}</span>. Formatting (dashes, brackets, spaces) does not matter to Google as long as the digits match — but keep it consistent for humans.`});
+  }
+
+  // 3. tracking number warning
+  if (/^(800|888|877|866|855|844|833)/.test(d)){
+    issues.push({level:"warn", title:"Toll-free number as primary",
+      body:"A local area-code number outranks a toll-free one for map pack. Use the local number as primary and put the toll-free in the secondary field."});
+  }
+
+  // 4. keyword stuffing in name
+  const stuffWords = ["best","cheap","affordable","near me","top","#1","no.1","24/7"];
+  const stuffed = stuffWords.filter(w => name.toLowerCase().includes(w));
+  if (stuffed.length){
+    issues.push({level:"bad", title:"Business name may be keyword-stuffed",
+      body:`Found ${stuffed.map(s=>`<span class="mono">${s}</span>`).join(", ")}. Google suspends profiles for this, and competitors report it. Use your real registered name.`});
+  }
+
+  // 5. suite/unit present
+  if (!/\b(suite|ste|unit|apt|apartment|floor|fl|#)\b/i.test(addr)){
+    issues.push({level:"warn", title:"No suite or unit number",
+      body:"If you share a building with other businesses and have no unit number, your listings can merge with theirs. Add the unit if you have one."});
+  }
+
+  // 6. region
+  if (!region){
+    issues.push({level:"warn", title:"No state or province",
+      body:"Several directories require it and will guess wrong without it."});
+  }
+
+  render(issues, {name, addr, city, region, phone, country});
+}
+
+function render(issues, nap){
+  $("out").classList.remove("hidden");
+
+  const order = {bad:0, warn:1, good:2};
+  issues.sort((a,b)=> order[a.level]-order[b.level]);
+
+  $("issues").innerHTML = issues.map(i => `
+    <div class="card">
+      <span class="pill ${i.level}">${i.level==="good"?"ok":i.level==="warn"?"risk":"fix now"}</span>
+      <strong style="margin-left:8px">${i.title}</strong>
+      <div class="muted" style="margin-top:6px">${i.body}</div>
+    </div>`).join("");
+
+  const canonical = `${nap.name}\n${nap.addr}\n${nap.city}${nap.region?", "+nap.region:""}\n${nap.phone}`;
+  $("canon").textContent = canonical;
+  $("copy").onclick = () => {
+    navigator.clipboard.writeText(canonical);
+    $("copy").textContent = "Copied";
+    setTimeout(()=> $("copy").textContent = "Copy canonical NAP", 1600);
+  };
+
+  const q = encodeURIComponent(`${nap.name} ${nap.city}`);
+  const list = [
+    ...DIRECTORIES.core.map(([n,why,url]) => [n, why, url+q]),
+    ...(DIRECTORIES[nap.country]||[]).map(([n,url]) => [n, "Regional directory", url+q]),
+  ];
+  $("dirs").querySelector("tbody").innerHTML = list.map(([n,why,url]) => `
+    <tr><td><strong>${n}</strong></td><td class="muted">${why}</td>
+    <td><a href="${url}" target="_blank" rel="noopener">Check &rarr;</a></td></tr>`).join("");
+
+  $("out").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+$("run").onclick = analyse;
+$("demo").onclick = () => {
+  $("bname").value = "Riverside Dental Care Inc.";
+  $("addr").value  = "1200 North Sherman Boulevard, Suite 200";
+  $("city").value  = "Milwaukee";
+  $("region").value= "WI";
+  $("phone").value = "(414) 555-0142";
+  analyse();
+};
+</script>
+</body>
+</html>

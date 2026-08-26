@@ -1,0 +1,138 @@
+# =============================================================================
+# authority-agent config
+#
+# This file ships with sensible generic defaults so the agent runs immediately.
+# Edit it to match your own business. Everything below is tunable EXCEPT the
+# intent of the `limits` block -- read the warning above it before raising a cap.
+#
+# The example throughout is a fictional local-SEO consultancy. Replace it.
+# =============================================================================
+
+site:
+  name: "Your Business"
+  url: "https://yourdomain.com"
+  what_we_do: >-
+    One or two plain sentences describing who you help and how. Write it the way
+    you would say it out loud, not the way a homepage says it. This is fed to the
+    writer, so vague input produces vague replies.
+
+# -----------------------------------------------------------------------------
+# Link targets: FREE TOOLS AND GUIDES, not your service pages.
+#
+# This is deliberate, and it is the single most important rule in this file.
+# A free resource with no signup wall is something a forum genuinely thanks you
+# for. A /services/ page is an advert and gets you reported and banned.
+#
+# Never put a service page, a pricing page or a contact form in here.
+#
+# Leave this list empty and the agent still works -- it just writes pure-help
+# replies with no link at all, which is the safest mode to start in.
+# -----------------------------------------------------------------------------
+value_pages:
+  - url: "https://yourdomain.com/free-tools/example-audit/"
+    answers: "What do I check first when my business stops showing up on Google?"
+    keywords: ["google business profile", "gbp", "google my business", "gmb",
+               "map pack", "local pack", "google maps", "maps listing",
+               "stopped showing", "not showing", "disappeared", "suspended",
+               "not appearing", "lost rankings", "dropped in rankings"]
+
+  - url: "https://yourdomain.com/free-tools/example-checklist/"
+    answers: "Where should I actually start with local SEO?"
+    keywords: ["where do i start", "seo checklist", "not ranking", "no traffic",
+               "invisible on google", "first steps seo"]
+
+# -----------------------------------------------------------------------------
+# Reddit targets
+#
+# Tiers, most to least valuable:
+#   A. Subs where your actual customers post about their problems.
+#   B. Expert subs -- high intent, but strict. Treat as NO-LINK, pure-help
+#      territory. r/SEO and r/bigseo remove self-promotion aggressively.
+#   C. Adjacent subs -- large but mostly the wrong audience. Keep these few.
+#
+# Run `python run.py check-subs` once set up to confirm these exist and see
+# subscriber counts before your first real run.
+# -----------------------------------------------------------------------------
+reddit:
+  subreddits:
+    # Tier A -- the core
+    - sweatystartup           # service-business owners
+    - smallbusiness
+    - Entrepreneur
+    - EntrepreneurRideAlong
+    # Tier B -- high intent, link-hostile, go pure-help here
+    - SEO
+    - bigseo
+    - juststart
+    - digital_marketing
+
+  # Target the PROBLEM your customer has, not your industry name.
+  # Searching your industry returns noise; searching the problem returns people.
+  queries:
+    - "google business profile not showing"
+    - "local seo not ranking"
+    - "not getting leads"
+    - "service business website"
+    - "small business google maps"
+
+  timeframe: month
+  max_per_query: 50
+
+quora:
+  queries:
+    - "how to rank a local service business on google"
+    - "google business profile not showing up"
+    - "how to get more google reviews for my business"
+  max_per_query: 20
+
+# -----------------------------------------------------------------------------
+# Scoring
+# -----------------------------------------------------------------------------
+scoring:
+  min_score: 40            # slightly loose to start; raise once the queue fills
+  recency_half_life_hours: 96
+  prefer_questions: true
+  max_comments: 60
+
+# -----------------------------------------------------------------------------
+# SAFETY RAILS
+#
+# WARNING. These numbers are already at the sensible end for an account you care
+# about. Reddit bans for pattern, not just content: same-day repeat posting, a
+# high link ratio, and no history outside your own topic are what get noticed.
+#
+# If you are being throttled, that is the system working. Raising a cap to get
+# more volume is how the account gets shadowbanned, and a shadowbanned account
+# cannot be recovered by editing this file.
+# -----------------------------------------------------------------------------
+limits:
+  reddit_comments_per_day: 4
+  reddit_threads_per_day: 1
+  quora_answers_per_day: 3
+  min_minutes_between_actions: 35
+  max_link_ratio: 0.2       # at most 1 in 5 replies may contain a link
+  warmup_posts: 15          # pure-help replies before any link is allowed
+  subreddit_cooldown_hours: 24
+  dwell_seconds: 30
+
+# -----------------------------------------------------------------------------
+# Drafting
+#
+#   engine: claude  -> writes a prompt file per thread; you run it through the
+#                      Claude CLI on your existing subscription. No API key.
+#   engine: groq    -> calls Groq's free API tier directly. Needs GROQ_API_KEY
+#                      in .env. Fully automatic, slightly lower quality.
+# -----------------------------------------------------------------------------
+draft:
+  engine: claude
+  groq_model: "llama-3.3-70b-versatile"
+  tone: >-
+    Plain, direct, first person. Someone who has actually solved this for real
+    businesses, not a marketer describing marketing. Reference concrete
+    specifics where they genuinely fit. Never name your company. Never pitch.
+    If the honest answer is "you don't need to pay anyone for this", say that.
+    No hype, no em-dashes, no "Great question". Short paragraphs.
+  max_words: 190
+
+browser:
+  cdp: "http://localhost:9222"

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Missed Call Revenue Calculator — What Unanswered Calls Cost a Local Business</title>
+<meta name="description" content="Work out what missed and unreturned calls cost your business per month and per year. Free, no signup, runs in your browser.">
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+<div class="wrap">
+
+<h1>Missed Call Revenue Calculator</h1>
+<p class="lede">Most local businesses treat a missed call as nothing. It is the most expensive thing that happens in a normal working day — the caller has intent, and the next result on the page will take them. This puts a number on it.</p>
+
+<div class="card">
+  <div class="grid">
+    <div>
+      <label for="calls">Inbound calls per month</label>
+      <input id="calls" type="number" min="0" value="180">
+    </div>
+    <div>
+      <label for="missed">% of calls missed or unreturned</label>
+      <input id="missed" type="number" min="0" max="100" value="22">
+    </div>
+    <div>
+      <label for="close">% of answered calls that become customers</label>
+      <input id="close" type="number" min="0" max="100" value="35">
+    </div>
+    <div>
+      <label for="value">Average value of one job / sale</label>
+      <input id="value" type="number" min="0" value="450">
+    </div>
+    <div>
+      <label for="repeat">Average repeat jobs per customer (lifetime)</label>
+      <input id="repeat" type="number" min="1" step="0.1" value="2.4">
+    </div>
+    <div>
+      <label for="callback">% of missed callers who call back</label>
+      <input id="callback" type="number" min="0" max="100" value="25">
+    </div>
+    <div class="full">
+      <button id="run">Calculate</button>
+    </div>
+  </div>
+</div>
+
+<div id="out" class="hidden">
+  <div class="card" style="text-align:center">
+    <div class="muted">Lost revenue per year</div>
+    <div class="big" id="year"></div>
+    <div class="muted" id="month"></div>
+  </div>
+
+  <h2>How that breaks down</h2>
+  <div class="scroll"><table>
+    <tbody id="rows"></tbody>
+  </table></div>
+
+  <h2>What moves the number most</h2>
+  <div id="levers"></div>
+
+  <h2>Sanity check</h2>
+  <p class="muted" id="sanity"></p>
+</div>
+
+<footer>
+  Runs entirely in your browser — nothing is uploaded or stored.
+</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const money = n => n.toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:0});
+const num = id => Math.max(0, parseFloat($(id).value) || 0);
+
+function calc(){
+  const calls    = num("calls");
+  const missPct  = Math.min(num("missed"),100)/100;
+  const closePct = Math.min(num("close"),100)/100;
+  const value    = num("value");
+  const repeat   = Math.max(num("repeat"),1);
+  const backPct  = Math.min(num("callback"),100)/100;
+
+  const missed        = calls * missPct;
+  const neverReturn   = missed * (1 - backPct);
+  const lostCustomers = neverReturn * closePct;
+  const firstJob      = lostCustomers * value;
+  const lifetime      = lostCustomers * value * repeat;
+
+  $("out").classList.remove("hidden");
+  $("year").textContent  = money(lifetime * 12);
+  $("month").textContent = money(lifetime) + " per month, counting repeat business";
+
+  const rows = [
+    ["Calls per month", calls.toFixed(0)],
+    ["Missed or unreturned", missed.toFixed(1) + ` (${(missPct*100).toFixed(0)}%)`],
+    ["Never call back", neverReturn.toFixed(1) + ` (${((1-backPct)*100).toFixed(0)}% of missed)`],
+    ["Customers lost per month", lostCustomers.toFixed(1)],
+    ["First-job revenue lost", money(firstJob) + " / month"],
+    ["With repeat business", money(lifetime) + " / month"],
+    ["Annual", `<strong>${money(lifetime*12)}</strong>`],
+  ];
+  $("rows").innerHTML = rows.map(([k,v]) =>
+    `<tr><td class="muted">${k}</td><td style="text-align:right">${v}</td></tr>`).join("");
+
+  // Only two things actually shrink this number: missing fewer calls, or
+  // catching more of the ones you missed. Improving close rate or job value
+  // does NOT recover anything -- it makes every missed call cost more. Showing
+  // those as "recovery" would be straightforwardly wrong, so they are split
+  // out as amplifiers instead.
+  const base = lifetime * 12;
+  const fixes = [
+    ["Answer 10% more calls",
+      lostFor(calls, Math.max(missPct-0.10,0), closePct, value, repeat, backPct)],
+    ["Call every missed caller back within 5 minutes",
+      lostFor(calls, missPct, closePct, value, repeat, Math.min(backPct+0.45,1))],
+    ["Answer everything during opening hours",
+      lostFor(calls, missPct*0.35, closePct, value, repeat, backPct)],
+  ];
+  fixes.sort((a,b) => a[1]-b[1]);
+  $("levers").innerHTML = fixes.map(([label, after]) => {
+    const saved = Math.max(base - after, 0);
+    const pct = base ? (saved/base*100) : 0;
+    return `<div class="card">
+      <strong>${label}</strong>
+      <div class="muted" style="margin-top:4px">
+        Recovers <strong>${money(saved)}</strong> a year
+        (${pct.toFixed(0)}% of what you are losing)
+      </div></div>`;
+  }).join("");
+
+  const amp = lostFor(calls, missPct, Math.min(closePct+0.10,1), value*1.15,
+                      repeat, backPct);
+  $("levers").innerHTML += `<div class="card">
+      <span class="pill warn">counter-intuitive</span>
+      <strong style="margin-left:8px">Better marketing makes this worse, not better</strong>
+      <div class="muted" style="margin-top:5px">
+        Raise your close rate 10 points and your average job 15% without fixing
+        the phone, and the annual loss goes from <strong>${money(base)}</strong>
+        to <strong>${money(amp)}</strong>. More valuable leads means each
+        dropped call costs more. Fix the leak before you turn up the tap.
+      </div></div>`;
+
+  $("sanity").innerHTML =
+    `This assumes a missed caller who never rings back is fully lost. That is ` +
+    `usually right for services people buy once and urgently, and pessimistic ` +
+    `for businesses with a strong repeat base. If you already call missed ` +
+    `numbers back the same day, raise the callback percentage and re-run — ` +
+    `it is the input the result is most sensitive to.`;
+}
+
+function lostFor(calls, missPct, closePct, value, repeat, backPct){
+  const missed = calls * missPct;
+  const never  = missed * (1 - backPct);
+  return never * closePct * value * repeat * 12;
+}
+
+$("run").onclick = calc;
+["calls","missed","close","value","repeat","callback"].forEach(id =>
+  $(id).addEventListener("input", () => { if(!$("out").classList.contains("hidden")) calc(); }));
+calc();
+</script>
+</body>
+</html>
