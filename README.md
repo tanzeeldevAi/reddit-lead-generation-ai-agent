@@ -10,6 +10,7 @@ that matches a keyword. This one is built the other way round: it rejects hard, 
 to link before it links, and shows you every draft before anything is posted.
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
+[![Tests](https://github.com/tanzeeldevAi/reddit-lead-generation-ai-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/tanzeeldevAi/reddit-lead-generation-ai-agent/actions/workflows/tests.yml)
 [![No API keys](https://img.shields.io/badge/Reddit%20API-not%20required-FF4500?logo=reddit&logoColor=white)](#requirements)
 [![Developed by Tanzeel](https://img.shields.io/badge/Developed%20by-Tanzeel-6C3EF5)](https://github.com/tanzeeldevAi)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
